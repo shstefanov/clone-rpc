@@ -1,4 +1,4 @@
-var cluster = require("cluster");
+var cluster  = require("cluster");
 var CloneRPC = require("../index");
 
 
@@ -6,20 +6,27 @@ var server = new CloneRPC({
   sendData: function(data)  { process.send(data);       },
   getData:  function(fn)    { process.on("message", fn);},
   onClone: function(clone)  {
-    console.log("clone request from server to client", clone);
+    console.log("clone server object here", clone);
   }
 })
+
 .build({
   id: "client",
-  listeners: ['bind'],
+
+
+  // By default, functions passed as parameters are turned into one-time callback
+  // Put in listeners array some method name and you can call it's callbacks many times
   //Methods:
   workerEcho: function(data, cb){
     console.log("in worker echo: ", data);
     cb(null, data);
-
+    // If you want to delete some cb or listener on other side
+    // just call cb.drop() and it will disappear
   },
-  bind: function(event, cb){
 
+  listeners: ['bind'],
+  bind: function(event, listener){
+    // process.on("someEvent", listener)
   }
 });
 
@@ -36,10 +43,30 @@ setTimeout(function(){
 
 function clone(remote){
   console.log("clone tester");
-  remote.clone({
+  // On this side, clone() returns the clone
+  // It uses the transport from remote, but we can define
+  // new json transport with:
+  // clone.setOptions({
+  //   sendData: function(data)  { ... },
+  //   getData:  function(fn)    { ... },
+  //   onClone:  function(clone) { ... }
+  // })
+  var clone = remote.clone({ //Return new clone or give it to cb initialized
     somemethod: function(data, cb){
       console.log("somemethod on cloning");
       cb(null, "somemethod response");
+      clone.new_remote_method();
     }
+  }, function(clone){
+    clone.clone({
+      childMethod: function(msg, cb){
+        console.log("child msg:", msg);
+      }
+    }, createChildChild)   
   })
+  
+}
+
+function createChildChild(clone){
+  console.log("It is clone of clone");
 }

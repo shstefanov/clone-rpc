@@ -8,10 +8,30 @@ var worker = cluster.fork();
 var remote = new CloneRPC({
   sendData: function(data)  { worker.send(data);         },
   getData:  function(fn)    { worker.on ("message", fn); },
-  onClone: function(new_remote){
-    console.log("We have a cloning", new_remote);
-    new_remote.somemethod("call somemethod", function(){
-      console.log("new_remote clone has responded to server", arguments);
+  onClone: function(clone){
+    
+    console.log("We have a cloning", clone);
+
+    clone.build({
+      // Projecting some methods back to other side
+      new_remote_method: function(){
+        console.log("Called from otherside")
+      }
+    });
+    // We call server.clone() on the other side and clone comes here with it's methods
+    clone.somemethod("call somemethod", function(){
+      console.log("Calling remote method and executing callback", arguments);
+      // Expecting otherside to summon another clone from this rpc node
+      // So creating the handler (by default parent node will handle clones)
+      clone.setOptions({
+        onClone: function(clone_clone){
+          // The clone of clone
+          console.log("We have clone of clone");
+          clone_clone.childMethod("haha", function(response){
+            console.log("clone_clone response: ", response);
+          })
+        }
+      })
     })
   }
 })

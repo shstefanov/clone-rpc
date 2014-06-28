@@ -10,18 +10,20 @@ var getMethods = function(obj){
   return result;
 }
 
+
+// The protocol
 // var data = {
 //   type:   ["action",     "cb",     "listener",    "destroy_cb", "destroy_listener",    "init"],
 //   cb_id: 2,
 //   listener_id: 4,
-//   action: ["action_name", "cb_id", "listener_id", undefined],
-//   args:   [1,2,3,4,5,6],
-//   //describes args
+//   action: "actionName"
+//   args:   [ ... ],
 //   meta:   {cb: 3, listener:4} 
 // }
 
 
 function Transport(options){
+  if(!options) options = {};
   this.setOptions(options);
   this.__uniqueIndex = 0;
   this.__callbacks = {};
@@ -76,6 +78,10 @@ Transport.prototype = {
         self.send(data)
       }
     })
+    if(this.__releaseOnBuild) {
+      this.__releaseOnBuild();
+      delete this.__releaseOnBuild;
+    }
   },
 
   __action: function(data){
@@ -114,6 +120,7 @@ Transport.prototype = {
 
 
 
+  // Listeners
   __registerListeners: function(listeners){
     var self = this;
     listeners.forEach(function(listener){
@@ -123,9 +130,6 @@ Transport.prototype = {
   __isListener: function(action){
     return action in this.__listenersList;
   },
-
-
-
 
   __createListener: function(fn){
     var id = this.__uniqueIndex++;
@@ -165,6 +169,7 @@ Transport.prototype = {
 
 
 
+  // Callbacks
   __createCallback: function(fn){
     var id = this.__uniqueIndex++;
     this.__callbacks["_"+id] = fn;
@@ -228,25 +233,21 @@ Transport.prototype = {
 
   //Clone feature
 
-
-
-  clone: function(obj){
+  clone: function(obj, cb){
     var self = this;
 
-    var clone = new Transport({});
+    var clone = new Transport();
 
     var getData;
-    var initCallback = function(data, release){ //release is callback id
+    var initCallback = function(data){
       var otherSideListener = this.__createListenerFromID(data.listener_id);
       clone.setOptions({
         sendData:function(data){otherSideListener(data)},
         getData: function(fn){ getData = function(data){fn(data);}; },
         onClone: self.__onClone
       });
-
-      console.log("??? clone.build");
       clone.build(obj);
-      release();
+      cb && cb(clone);
     }
 
     var getDataListener = function(data){ getData(data); };
@@ -255,9 +256,6 @@ Transport.prototype = {
       type: "createClone",
       listener_id: this.__createListener(getDataListener),
       init_callback_id: this.__createCallback(initCallback)
-      // id: this.__uniqueIndex++,
-      // actions: getMethods(obj),
-      // listeners: obj.listeners || []
     })
     return clone;
   },
@@ -278,29 +276,17 @@ Transport.prototype = {
       onClone:  this.__onClone
     })
     var self = this;
-    callback({ listener_id: listener_id }, function(){
+    clone.__releaseOnBuild = function(){
       self.__onClone(clone)
-    });
+    }
+    callback({ listener_id: listener_id });
 
-    // clone.build({});
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 }
 
+
+//Helpers
 var argsFromRemote = function(transport, args, data){
   var parsed = new Array(args.length);
   for(var i=0;i<args.length;i++){    var arg = args[i];
