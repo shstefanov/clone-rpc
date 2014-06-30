@@ -1,72 +1,69 @@
 var cluster  = require("cluster");
 var CloneRPC = require("../index");
 
-
 var server = new CloneRPC({
+  callbackTimeout: 4000,
   sendData: function(data)  { process.send(data);       },
   getData:  function(fn)    { process.on("message", fn);},
   onClone: function(clone)  {
     console.log("clone server object here", clone);
   }
-})
-
-.build({
-  id: "client",
-
-
-  // By default, functions passed as parameters are turned into one-time callback
-  // Put in listeners array some method name and you can call it's callbacks many times
-  //Methods:
-  workerEcho: function(data, cb){
-    console.log("in worker echo: ", data);
-    cb(null, data);
-    // If you want to delete some cb or listener on other side
-    // just call cb.drop() and it will disappear
-  },
-
-  listeners: ['bind'],
-  bind: function(event, listener){
-    // process.on("someEvent", listener)
-  }
 });
 
-setTimeout(function(){
-  // Calling the remote method and waiting for callback
-  server.serverEcho("test", function(){
-    console.log("I have response from server: ", arguments);
-    clone(server); // run clone tester
-  });
-}, 1500)
+server.build( "server", {/*The id, that will be assigned to otherside instance*/  
 
+  listeners: ["listen", "dropListener"], 
 
-
-
-function clone(remote){
-  console.log("clone tester");
-  // On this side, clone() returns the clone
-  // It uses the transport from remote, but we can define
-  // new json transport with:
-  // clone.setOptions({
-  //   sendData: function(data)  { ... },
-  //   getData:  function(fn)    { ... },
-  //   onClone:  function(clone) { ... }
-  // })
-  var clone = remote.clone({ //Return new clone or give it to cb initialized
-    somemethod: function(data, cb){
-      console.log("somemethod on cloning");
-      cb(null, "somemethod response");
-      clone.new_remote_method();
-    }
-  }, function(clone){
-    clone.clone({
-      childMethod: function(msg, cb){
-        console.log("child msg:", msg);
-      }
-    }, createChildChild)   
-  })
+  // Write here your custom methods that can be called remotely
+  initialize: function(cb){
+    // This function is not defined as listener
+    // and it's callbacks can be called only once
+    cb("initialize callback once");
+    cb("initialize callback twice (not working)");
+  },
   
+  dropCallback: function(cb){
+    cb.drop();
+    cb("dropCallback once (not working - dropped)");
+  },
+
+  dropListener: function(cb){
+    cb("Call dropListener 1");
+    cb("Call dropListener 2");
+    cb("Call dropListener 3");
+    cb.drop();
+    cb("Call dropListener 4");
+  },
+
+  callbackInCallback: function(cb){
+    cb(function(cb){
+      cb("callbackInCallback ok");
+    });
+  },
+
+  listen: function(cb){
+    //This function is defined as listener, so we can call it's
+    // callbacks many times
+    cb("Call listener 1");
+    cb("Call listener 2");
+    cb("Call listener 3");
+    cb("Call listener 4");
+  },
+
+  createClone: function(){
+    cloneChild(this.clone());
+  }
+}, 
+
+function(){
+  //Both sides ready for use
+  this.initialize(this.id);
+});
+
+
+// Handle the clones
+function cloneChild(clone){
+  console.log("cloned (in client)", clone);
 }
 
-function createChildChild(clone){
-  console.log("It is clone of clone");
-}
+
