@@ -51,7 +51,9 @@ server.build( "server", {/*The id, that will be assigned to otherside instance*/
   },
 
   createClone: function(){
-    cloneChild(this.clone());
+    //Create clone and handle it 
+    //when connection is established
+    this.clone(cloneChild); 
   }
 }, 
 
@@ -63,7 +65,32 @@ function(){
 
 // Handle the clones
 function cloneChild(clone){
-  console.log("cloned (in client)", clone);
+  
+  
+  clone.build("clone", {
+    listeners: ["cloneClientMethod"],
+    cloneClientMethod: function(cb){
+      console.log("cloneClientMethod");
+      cb(1);
+      cb(2);
+      cb.drop();
+      cb(3);
+    },
+    cloneClientMethod2: function(cb){
+      console.log("cloneClientMethod2");
+      cb(1);
+      cb(2);
+      cb(3);
+    }
+  }, function(){
+    //Clone ready on both sides
+    // start using them
+    clone.cloneServerMethod();
+    console.log("clone ready");
+  });
+
+
+
 }
 
 

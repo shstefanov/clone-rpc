@@ -14,21 +14,21 @@ var createWorker = function(id){
     callbackTimeout: 4000,
     sendData: function(data)  { worker.send(data);         },
     getData:  function(fn)    { worker.on ("message", fn); },
-    onClone: cloneChild
+    onClone: cloneChild   //Handle when clone is summoned from otherside
   });
 
   remote.debug = true;
   remote.build( id, 
   {
     initialize: function(id){
-      //console.log("Worker sends back it's id", id);
+      console.log("Worker sends back it's id", id);
     }
   }, 
 
   function(){
-    //console.log(this);
+    
     //Both sides ready for use
-    if(id==0){
+    //if(id==0){
       
       // Calling remote methods (chainable)
       this.initialize(function(arg){
@@ -59,7 +59,7 @@ var createWorker = function(id){
 
       .createClone();
       
-    }
+    //}
 
   });
 
@@ -67,11 +67,33 @@ var createWorker = function(id){
 
 
 for(var i = 0;i<4;i++){
+  // Starting 4 child processes and creating clone-rpc communication with them
   createWorker(i);
 }
 
 
 // Handle the clones
 function cloneChild(clone){
-  console.log("cloned", clone);
+
+  // New clones comming here and we can start building it
+
+  clone.build("111", {
+    cloneServerMethod: function(){
+      console.log("cloneServerMethod");
+    }
+  }, function(){ 
+    //Clone ready on both sides
+    // start using them
+
+    //Defined as listener
+    clone.cloneClientMethod(function(str){
+      console.log("cloneClientMethod (s) listen", str);
+    })
+
+    //Not listener - one-time callback
+    .cloneClientMethod2(function(str){
+      console.log("cloneClientMethod (s) once", str);
+    })
+
+  })
 }

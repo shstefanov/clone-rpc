@@ -1,3 +1,5 @@
+// Fully free of dependencies :)
+
 
 var getMethods = function(obj){
   var result = [];
@@ -284,7 +286,10 @@ Transport.prototype.__defineOnMessage = function(fn){
 
 //Clone feature
 
-Transport.prototype.clone = function(obj, cb){
+Transport.prototype.clone = function(options, cb){
+  if(typeof options==="function"){
+    cb = options, options = {};
+  }
   var self = this;
 
   var clone = new Transport();
@@ -293,11 +298,11 @@ Transport.prototype.clone = function(obj, cb){
   var initCallback = function(data){
     var otherSideListener = this.__createListenerFromID(data.listener_id);
     clone.setOptions({
-      sendData:function(data){otherSideListener(data)},
+      sendData: otherSideListener,
       getData: function(fn){ getData = function(data){fn(data);}; },
       onClone: self.__onClone
     });
-    clone.build(obj);
+    //clone.build(obj);
     cb && cb(clone);
   }
 
