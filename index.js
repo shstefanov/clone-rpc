@@ -35,6 +35,7 @@ function Transport(options){
 }
 
 Transport.prototype.setOptions = function(options){
+  if(options.context)  this.__context = options.context;
   if(options.getData)  this.__defineOnMessage(options.getData);
   if(options.sendData) this.__defineSendData(options.sendData);
   if(options.onClone)  this.__onClone = options.onClone;
@@ -51,14 +52,17 @@ Transport.prototype.setOptions = function(options){
 // Sends init type to other side and gets back 
 // init type for constructing remote methods
 Transport.prototype.build = function(id, obj, cb){
+  if(typeof id ===  "function") cb=id, id=null, obj={};
+  if(typeof obj === "function") cb=obj, obj={};
+  obj = obj || {};
   this.__handlers = obj;
   if(typeof id === "function"){ this.__buildCallback = id; return this; }
   var self = this;
   if(cb) this.__readyStateCallback = function(){cb.apply(self);};
-  this.send({
+  this.__send({
     type: "init",
     id: id,
-    actions:   getMethods(obj),
+    actions:   obj.availableMethods || getMethods(obj),
     listeners: obj.listeners || [],
     cb_id:     this.__createCallback(function(){
       self.__checkReadyState();
@@ -103,7 +107,7 @@ Transport.prototype.__init = function(data){
         meta: {}
       }
       data.args = argsToRemote(this, arguments, data);
-      this.send(data);
+      this.__send(data);
       return this;
     }
   });
@@ -121,7 +125,7 @@ Transport.prototype.__init = function(data){
 
 Transport.prototype.__action = function(data){
   if( typeof this.__handlers[data.action]==="function"){
-    this.__handlers[data.action].apply(this, argsFromRemote(this, data.args, data))
+    this.__handlers[data.action].apply(this.__context || this, argsFromRemote(this, data.args, data))
   }
 };
 
@@ -200,11 +204,11 @@ Transport.prototype.__createListenerFromID = function(id){
     if(droped===true) return;
     var data = {type:"listener", meta:{}, listener_id:id};
     data.args = argsToRemote(self, arguments, data);
-    self.send(data);
+    self.__send(data);
   };
   fn.drop = function(){
     droped = true;
-    self.send({
+    self.__send({
       type: "destroy_listener",
       listener_id: id
     });
@@ -248,12 +252,12 @@ Transport.prototype.__createCallbackFromID = function(id){
     sent = true;
     var data = {type:"cb", meta:{}, cb_id:id };
     data.args = argsToRemote(self, arguments, data);
-    self.send(data);
+    self.__send(data);
   }
 
   fn.drop = function(){
     sent = true;
-    self.send({
+    self.__send({
       type: "destroy_cb",
       cb_id: id
     });
@@ -263,7 +267,7 @@ Transport.prototype.__createCallbackFromID = function(id){
 
 
 Transport.prototype.__defineSendData = function(fn){
-  this.send = fn;
+  this.__send = fn;
   return this;
 };
 
@@ -290,7 +294,10 @@ Transport.prototype.clone = function(options, cb){
   if(typeof options==="function"){
     cb = options, options = {};
   }
+  options = options || {};
   var self = this;
+  if(!options.callbackTimeout) options.callbackTimeout = this.__callbackTimeout;
+  if(!options.onClone) options.onClone = this.__onClone;
 
   var clone = new Transport();
 
@@ -298,9 +305,10 @@ Transport.prototype.clone = function(options, cb){
   var initCallback = function(data){
     var otherSideListener = this.__createListenerFromID(data.listener_id);
     clone.setOptions({
-      sendData: otherSideListener,
-      getData: function(fn){ getData = function(data){fn(data);}; },
-      onClone: self.__onClone
+      sendData:        otherSideListener,
+      getData:         function(fn){ getData = function(data){fn(data);}; },
+      onClone:         options.onClone,
+      callbackTimeout: options.callbackTimeout
     });
     //clone.build(obj);
     cb && cb(clone);
@@ -308,7 +316,7 @@ Transport.prototype.clone = function(options, cb){
 
   var getDataListener = function(data){ getData(data); };
 
-  this.send({
+  this.__send({
     type: "createClone",
     listener_id: this.__createListener(getDataListener),
     init_callback_id: this.__createCallback(initCallback)
@@ -327,7 +335,7 @@ Transport.prototype.__createClone = function(data){
   var listener_id = this.__createListener(getDataListener)
 
   var clone = new Transport({
-    sendData: function(data){otherSideListener(data);},
+    sendData: otherSideListener,
     getData:  function(fn){ getData = function(data){fn(data);};},
     onClone:  this.__onClone
   })
