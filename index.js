@@ -1,6 +1,5 @@
+
 // Fully free of dependencies :)
-
-
 var getMethods = function(obj){
   var result = [];
   for(key in obj){
@@ -10,8 +9,6 @@ var getMethods = function(obj){
   }
   return result;
 }
-
-
 // The protocol
 // var data = {
 //   type:   ["action",     "cb",     "listener",    "destroy_cb", "destroy_listener",    "init"],
@@ -21,8 +18,6 @@ var getMethods = function(obj){
 //   args:   [ ... ],
 //   meta:   {cb: 3, listener:4} 
 // }
-
-
 function Transport(options){
   this.__readyState    = 2; 
   if(!options) options = {};
@@ -33,7 +28,6 @@ function Transport(options){
   this.__listenersList = {};
   this.__oldCallbacks  = {};
 }
-
 Transport.prototype.setOptions = function(options){
   if(options.context)  this.__context = options.context;
   if(options.getData)  this.__defineOnMessage(options.getData);
@@ -70,21 +64,15 @@ Transport.prototype.build = function(id, obj, cb){
   })
   return this;
 };
-
 Transport.prototype.__checkReadyState = function(){
   this.__readyState--;
   if(this.__readyState < 1) this.__readyStateCallback&&this.__readyStateCallback();
 }
-
 Transport.prototype.onMessage = function(data){
   var type = data.type;
   // TODO - check if type is of allowed types based on communication protocol
   if(this["__"+type]) this["__"+type](data);
 };
-
-
-
-
 // types handlers
 Transport.prototype.__init = function(data){
   this.id = data.id;
@@ -122,13 +110,11 @@ Transport.prototype.__init = function(data){
     this.__buildCallback.apply(this);
   }
 };
-
 Transport.prototype.__action = function(data){
   if( typeof this.__handlers[data.action]==="function"){
     this.__handlers[data.action].apply(this.__context || this, argsFromRemote(this, data.args, data))
   }
 };
-
 Transport.prototype.__cb = function(data){
   var hndl;
   var cb_id = "_"+data.cb_id;
@@ -146,7 +132,6 @@ Transport.prototype.__cb = function(data){
   this.__dropCallback(data.cb_id);
   
 };
-
 Transport.prototype.__listener = function(data){
   var listener_id = "_"+data.listener_id;
   if(listener_id in this.__listeners){
@@ -155,18 +140,12 @@ Transport.prototype.__listener = function(data){
     hndl.apply(ctx, argsFromRemote(this, data.args, data));
   }
 };
-
 Transport.prototype.__destroy_cb = function(data){
   this.__dropCallback(data.cb_id);
 };
-
 Transport.prototype.__destroy_listener = function(data){ 
   this.__dropListener(data.listener_id);
 };
-
-
-
-
 // Listeners
 Transport.prototype.__registerListeners = function(listeners){
   var self = this;
@@ -177,18 +156,15 @@ Transport.prototype.__registerListeners = function(listeners){
 Transport.prototype.__isListener = function(action){
   return action in this.__listenersList;
 };
-
 Transport.prototype.__createListener = function(fn){
   var id = this.__uniqueIndex++;
   this.__listeners["_"+id] = fn;
   return id;
 };
-
 Transport.prototype.__dropListener = function(listenerID){
   var lid = "_"+listenerID;
   if(lid in this.__listeners) delete this.__listeners[lid];
 };
-
 Transport.prototype.__runListener = function(listenerID, args){
   var lid = "_"+listenerID;
   if(lid in this.__listeners) {
@@ -197,7 +173,6 @@ Transport.prototype.__runListener = function(listenerID, args){
     hndl.ctx?hndl.apply(hndl.ctx, args):hndl(args);
   };
 };
-
 Transport.prototype.__createListenerFromID = function(id){
   var self = this, droped = false;
   var fn = function(){
@@ -215,26 +190,20 @@ Transport.prototype.__createListenerFromID = function(id){
   }
   return fn;
 };
-
-
-
 // Callbacks
 Transport.prototype.__switchCallbacks = function(){
   this.__oldCallbacks = this.__callbacks;
   this.__callbacks = {};
 };
-
 Transport.prototype.__createCallback = function(fn){
   var id = this.__uniqueIndex++;
   this.__callbacks["_"+id] = fn;
   return id;
 };
-
 Transport.prototype.__dropCallback = function(callbackID){
   var cid = "_"+callbackID;
   if(cid in this.__callbacks) delete this.__callbacks[cid];
 };
-
 Transport.prototype.__runCallback = function(callbackID, args){
   var cid = "_"+callbackID;
   if(cid in this.__callbacks){
@@ -244,7 +213,6 @@ Transport.prototype.__runCallback = function(callbackID, args){
     delete this.__callbacks[cid];
   }
 };
-
 Transport.prototype.__createCallbackFromID = function(id){
   var self = this, sent = false;
   var fn = function(){
@@ -254,7 +222,6 @@ Transport.prototype.__createCallbackFromID = function(id){
     data.args = argsToRemote(self, arguments, data);
     self.__send(data);
   }
-
   fn.drop = function(){
     sent = true;
     self.__send({
@@ -264,13 +231,10 @@ Transport.prototype.__createCallbackFromID = function(id){
   }
   return fn;
 };
-
-
 Transport.prototype.__defineSendData = function(fn){
   this.__send = fn;
   return this;
 };
-
 Transport.prototype.__defineOnMessage = function(fn){
   var self = this;
   fn.call(this, function(data){
@@ -278,18 +242,7 @@ Transport.prototype.__defineOnMessage = function(fn){
   });
   return this;
 };
-
-
-
-
-
-
-
-
-
-
 //Clone feature
-
 Transport.prototype.clone = function(options, cb){
   if(typeof options==="function"){
     cb = options, options = {};
@@ -298,9 +251,7 @@ Transport.prototype.clone = function(options, cb){
   var self = this;
   if(!options.callbackTimeout) options.callbackTimeout = this.__callbackTimeout;
   if(!options.onClone) options.onClone = this.__onClone;
-
   var clone = new Transport();
-
   var getData;
   var initCallback = function(data){
     var otherSideListener = this.__createListenerFromID(data.listener_id);
@@ -310,20 +261,21 @@ Transport.prototype.clone = function(options, cb){
       onClone:         options.onClone,
       callbackTimeout: options.callbackTimeout
     });
-    //clone.build(obj);
+    clone.__drop = function(){
+      otherSideListener.drop();
+      this.__dropListener(listener_id);
+    }
     cb && cb(clone);
   }
-
   var getDataListener = function(data){ getData(data); };
-
+  var listener_id = this.__createListener(getDataListener);
   this.__send({
     type: "createClone",
-    listener_id: this.__createListener(getDataListener),
+    listener_id: listener_id,
     init_callback_id: this.__createCallback(initCallback)
   })
   return clone;
 };
-
 Transport.prototype.__createClone = function(data){
   if(!this.__onClone) return;
   var callback          = this.__createCallbackFromID(data.init_callback_id);
@@ -333,7 +285,6 @@ Transport.prototype.__createClone = function(data){
     getData(data);
   }
   var listener_id = this.__createListener(getDataListener)
-
   var clone = new Transport({
     sendData: otherSideListener,
     getData:  function(fn){ getData = function(data){fn(data);};},
@@ -344,12 +295,11 @@ Transport.prototype.__createClone = function(data){
     self.__onClone(clone)
   }
   callback({ listener_id: listener_id });
-
+  clone.__drop = function(){
+    otherSideListener.drop();
+    this.__dropListener(listener_id);
+  }
 };
-
-
-
-
 //Helpers
 var argsFromRemote = function(transport, args, data){
   var parsed = new Array(args.length);
@@ -366,7 +316,6 @@ var argsFromRemote = function(transport, args, data){
   }
   return parsed;
 };
-
 var argsToRemote = function(transport, args, data){
   var parsed = data.args = new Array(args.length);
   for(var i=0;i<args.length;i++){    var arg = args[i];
@@ -387,5 +336,5 @@ var argsToRemote = function(transport, args, data){
   }
   return parsed;
 };
-
 module.exports = Transport;
+
